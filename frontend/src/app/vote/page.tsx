@@ -122,7 +122,7 @@ function ProposalCard({ id, showFinalize = false }: { id: number; showFinalize?:
           <div className="space-y-3 pt-3 border-t border-green-100">
             <div className="text-sm text-green-600">
               Your voting power: {votingPower.toLocaleString()} 
-              {quadratic && ' (√ of balance)'}
+              {quadratic ? ' (√ of balance)' : null}
             </div>
             <div className="flex gap-3">
               <Button

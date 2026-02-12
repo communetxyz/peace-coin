@@ -96,7 +96,7 @@ function DisputeCard({ id }: { id: number }) {
   );
 }
 
-function MediatorProfile({ address: mediatorAddress }: { address: string }) {
+function MediatorProfile({ address: mediatorAddress }: { address: `0x${string}` }) {
   const { data: mediator } = useReadContract({
     ...CONTRACTS.PeaceBond,
     functionName: 'mediators',
@@ -372,7 +372,7 @@ export default function MediationPage() {
             </CardContent>
           </Card>
 
-          {isMediator && address && <MediatorProfile address={address} />}
+          {isMediator && address ? <MediatorProfile address={address} /> : null}
         </TabsContent>
       </Tabs>
     </div>
