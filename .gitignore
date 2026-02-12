@@ -1,0 +1,14 @@
+node_modules/
+.next/
+out/
+cache/
+broadcast/
+.env
+.env.*
+!.env.example
+broadcast/
+cache/
+out/
+.env
+.env.*
+!.env.example
