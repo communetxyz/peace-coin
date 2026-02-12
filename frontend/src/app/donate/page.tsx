@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useWriteContract, useWaitForTransactionReceipt, useAccount, useReadContract, useWatchContractEvent } from 'wagmi';
+import { usePublicClient } from 'wagmi';
 import { parseEther, formatEther } from 'viem';
 import { CONTRACTS } from '@/lib/contracts';
 
@@ -62,6 +63,8 @@ function DonationReceiptCard({ donation }: { donation: DonationEvent }) {
 function DonationHistory() {
   const { address } = useAccount();
   const [donations, setDonations] = useState<DonationEvent[]>([]);
+  const [isLoadingHistory, setIsLoadingHistory] = useState(false);
+  const publicClient = usePublicClient();
 
   // Watch for new donation events
   useWatchContractEvent({
@@ -81,20 +84,76 @@ function DonationHistory() {
     },
   });
 
-  // Load historical donations (simplified - in production would use event logs API)
+  // Load historical donation events from blockchain
   useEffect(() => {
-    if (address) {
-      // This would load from event logs or a backend service
-      const mockHistoricalDonations: DonationEvent[] = [];
-      setDonations(mockHistoricalDonations);
+    async function loadHistoricalDonations() {
+      if (!address || !publicClient) return;
+      
+      setIsLoadingHistory(true);
+      try {
+        // Get logs from contract deployment (using reasonable fromBlock to avoid huge queries)
+        const currentBlock = await publicClient.getBlockNumber();
+        const fromBlock = currentBlock > BigInt(1000) ? currentBlock - BigInt(1000) : BigInt(0); // Last ~1000 blocks
+        
+        const logs = await publicClient.getLogs({
+          address: CONTRACTS.PeaceTreasury.address,
+          event: {
+            type: 'event',
+            name: 'Donated',
+            inputs: [
+              { name: 'donor', type: 'address', indexed: true },
+              { name: 'ethAmount', type: 'uint256', indexed: false },
+              { name: 'peaceAmount', type: 'uint256', indexed: false }
+            ]
+          },
+          args: {
+            donor: address,
+          },
+          fromBlock,
+          toBlock: 'latest'
+        });
+
+        const historicalDonations = await Promise.all(
+          logs.map(async (log) => {
+            const block = await publicClient.getBlock({ blockHash: log.blockHash! });
+            return {
+              id: `${log.blockHash}-${log.logIndex}`,
+              donor: log.args.donor as string,
+              ethAmount: log.args.ethAmount as bigint,
+              peaceAmount: log.args.peaceAmount as bigint,
+              timestamp: Number(block.timestamp) * 1000,
+              txHash: log.transactionHash,
+            };
+          })
+        );
+
+        setDonations(historicalDonations.reverse()); // Most recent first
+      } catch (error) {
+        console.error('Failed to load historical donations:', error);
+        setDonations([]); // Fallback to empty array
+      } finally {
+        setIsLoadingHistory(false);
+      }
     }
-  }, [address]);
+
+    loadHistoricalDonations();
+  }, [address, publicClient]);
 
   if (!address) {
     return (
       <Card className="border-amber-100 bg-amber-50/50">
         <CardContent className="pt-6 text-center text-amber-700">
           Connect your wallet to view donation history
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (isLoadingHistory) {
+    return (
+      <Card className="border-green-100">
+        <CardContent className="pt-6 text-center text-green-600">
+          Loading donation history... ⌛
         </CardContent>
       </Card>
     );
